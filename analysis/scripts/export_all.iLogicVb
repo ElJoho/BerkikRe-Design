@@ -1,0 +1,52 @@
+' Batch export of every .ipt in CAD\ (top level only, OldVersions is skipped) to STP\ and STL\.
+' Run as an iLogic *external* rule with none of these parts open.
+' STEP: AP214 (Inventor default). STL: binary, mm, High resolution, same settings for every file.
+Imports System.IO
+
+Sub Main()
+    ' EDIT THIS: the repo's CAD folder on the Windows machine
+    Dim cadDir As String = "C:\Users\YOU\BerkirkRe-Design\CAD"
+
+    Dim repo As String = Directory.GetParent(cadDir).FullName
+    Dim stpDir As String = Path.Combine(repo, "STP")
+    Dim stlDir As String = Path.Combine(repo, "STL")
+    Directory.CreateDirectory(stpDir)
+    Directory.CreateDirectory(stlDir)
+
+    Dim stpAddin As TranslatorAddIn = ThisApplication.ApplicationAddIns.ItemById("{90AF7F40-0C01-11D5-8E83-0050048B6A30}")
+    Dim stlAddin As TranslatorAddIn = ThisApplication.ApplicationAddIns.ItemById("{533E9A98-FC3B-11D4-8E7E-0010B541CD80}")
+
+    Dim stlOpts As New Dictionary(Of String, Object)
+    stlOpts("OutputFileType") = 0   ' 0 = binary
+    stlOpts("ExportUnits") = 5      ' 5 = millimetre
+    stlOpts("Resolution") = 0       ' 0 = High
+
+    Dim report As New List(Of String)
+    For Each ipt As String In Directory.GetFiles(cadDir, "*.ipt")
+        Dim name As String = Path.GetFileNameWithoutExtension(ipt)
+        Try
+            Dim doc As Document = ThisApplication.Documents.Open(ipt, False)
+            SaveCopy(stpAddin, doc, Path.Combine(stpDir, name & ".stp"), Nothing)
+            SaveCopy(stlAddin, doc, Path.Combine(stlDir, name & ".stl"), stlOpts)
+            doc.Close(True)
+            report.Add("OK    " & name)
+        Catch ex As Exception
+            report.Add("FAIL  " & name & ": " & ex.Message)
+        End Try
+    Next
+    MessageBox.Show(String.Join(vbCrLf, report), "Export STP + STL")
+End Sub
+
+Sub SaveCopy(addin As TranslatorAddIn, doc As Document, file As String, opts As Dictionary(Of String, Object))
+    Dim ctx As TranslationContext = ThisApplication.TransientObjects.CreateTranslationContext
+    ctx.Type = IOMechanismEnum.kFileBrowseIOMechanism
+    Dim op As NameValueMap = ThisApplication.TransientObjects.CreateNameValueMap
+    If addin.HasSaveCopyAsOptions(doc, ctx, op) AndAlso opts IsNot Nothing Then
+        For Each kv In opts
+            op.Value(kv.Key) = kv.Value
+        Next
+    End If
+    Dim medium As DataMedium = ThisApplication.TransientObjects.CreateDataMedium
+    medium.FileName = file
+    addin.SaveCopyAs(doc, ctx, op, medium)
+End Sub

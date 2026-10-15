@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| Date | 2026-10-13 |
-| Status | Geometry of the 9 STL variants inspected. **No aerodynamic test has been run yet.** |
-| Next action | Step 0 (requirements) and Step 1 (CAD fixes and exports), done by the designer |
+| Date | 2026-10-13, updated 2026-10-15 |
+| Status | Elevons added and STL + STEP files re-exported (commit `1deeefd`). New geometry checked on 2026-10-15 (§4.6). **No aerodynamic test has been run yet.** |
+| Next action | Designer: finish Step 1. Fix the elevon joint so the STEP solids are valid, re-export the `contourn` and Base STLs, decide on the RT+CW winglet, and give the motor and mass data. Claude: then Step 3. |
 | Re-run the measurements | `python3 analysis/scripts/stl_geometry.py` |
 
 ---
@@ -13,7 +13,9 @@
 
 - **Goal:** compare the aerodynamics of the 9 Inventor models of the Berkirk 3 flying wing, pick one, keep designing it and build it.
 - **The STL files are clean:** binary, in mm, one closed watertight body each, correct normals. They can go straight into OpenFOAM's mesher (snappyHexMesh). The low-order aero tools need STEP files or airfoil + planform data instead (Step 1).
-- **All 9 models share the same planform:** span 1.336 m (1.346 m for ConstantCorners), projected area ≈ 0.32 m², mean aerodynamic chord (MAC) ≈ 276 mm, aspect ratio ≈ 5.6. These values are **without elevons** (see below).
+- **All 9 models share the same planform:**
+  - With elevons (2026-10-15): span 1.336 m (1.346 m for ConstantCorners), projected area ≈ 0.358–0.365 m², mean aerodynamic chord (MAC) ≈ 289–292 mm, aspect ratio ≈ 5.0.
+  - The first inspection, without elevons, gave ≈ 0.32 m², MAC ≈ 276 mm and AR ≈ 5.6.
 - **The variants differ in details that need 3D/viscous analysis:**
   - edge rounding and thickness (ConstantCorners)
   - size of the motor cowl's flat rear face (ReducedTail)
@@ -21,10 +23,13 @@
   - a different, thinner airfoil (contourn)
 
   Vortex-lattice and panel methods will barely separate the variants. Use them for stability and trim, and rank the variants with CFD and physical tests.
-- **Fix these before any test:**
-  1. The **elevons appear to be missing** from all models. The measured area is ~4.5–5 dm² below the original's 36.54 dm², which is about the area of the two W16 elevons.
-  2. ReducedTail+ChangedWings has **87 mm winglets**; all the other models have 95 mm.
-  3. The models **don't share a common reference point** (datum): the bottom is at z = 0, 10 or 12 mm and the nose at y = 323.4–326.0 mm.
+- **Fix these before any test** (status after the 2026-10-15 re-export, details in §4.6):
+  1. ~~The elevons are missing from all models.~~ **Done.** All 9 models now have 5 mm flat-plate elevons fixed at 0°. Wing area is now 35.8–36.5 dm², against the original's 36.54 dm².
+  2. ReducedTail+ChangedWings has **87 mm winglets**; all the other models have 95 mm. **Still open.**
+  3. **Common datum:**
+     - **Mostly done in the STEP files:** root leading edge at y ≈ 199–201 mm, bottom at z = 0.
+     - **Not done in 8 of the 9 STLs** (all except Base).
+  4. **New:** the 8 Siloute STEP solids are **invalid** where the elevon meets the rounded trailing edge, and the `contourn` STL is badly tessellated. Both need fixing before Flow5/CFD.
 - **Biggest aerodynamic risk: pitch trim.**
   - No airfoil has reflex, and washout is ≤ 1°.
   - The original Berkik 3 trims with a fixed elevon reflex (template T1, 166°).
@@ -54,7 +59,7 @@ From `PDFs/plano.pdf` (designed by Julius Perdana, 2021, paper-replika.com):
 | Wing area | 36.54 dm² |
 | Wing loading | 19.2 g/dm² (wing cube loading 3.2) |
 | CG | 26 cm behind the leading edge, "right on the wing break" |
-| Power | Turnigy 2826 2200 kV, 3S 2200 mAh, 5×5×3 pusher prop (5–9 in props possible), 2 × 9 g servos |
+| Power | Turnigy 2826 2200 kV, 3S 2200 mAh, 5×5×3 pusher prop (5–9 in props possible), 2 × 9 g servos. **The redesign uses an A2212/10T 1400 kV motor instead** (decided 2026-10-14). |
 | Structure | 5 mm foamboard/Depron, 3 mm plywood motor mount (M1–M3), 0.3 mm plastic motor cowl (M4) |
 | Controls | Separate elevons (W16, 5 mm foam) set with an "elevon reflex" template (T1, 166°); winglets (W17) |
 
@@ -85,6 +90,8 @@ The 8 "Siloute" models cover every combination of three changes (a 2×2×2 facto
 ---
 
 ## 4. Inspection results
+
+> **§4.1–4.5 describe the first inspection (2026-10-13, STLs without elevons).** Their tables are kept for reference. The re-export with elevons is checked in **§4.6**, which supersedes them where they differ.
 
 ### 4.1 File format and mesh health
 
@@ -216,6 +223,85 @@ Section properties at four spanwise stations (x = distance from the centreline).
    - Put all models on the same origin.
 5. **Coarse tessellation for CFD:** re-export finer (Step 1).
 6. **Packaging check:** the RT motor face (≈ 41 × 40 mm) is close to the size of a 28 mm-class motor (≈ 35 mm bell) plus its mount. Check the fit and the cooling airflow before choosing RT.
+   - The build motor is now an **A2212** (≈ 28 mm diameter, ≈ 27–28 mm can length, ≈ 47–50 g with the cross mount), so the check still applies.
+
+### 4.6 Re-export with elevons (commit `1deeefd`, checked 2026-10-15)
+
+The STLs were measured with `analysis/scripts/stl_geometry.py`, which now also prints an elevon table. The STEP files in `STP/` were opened with FreeCAD 1.1 (`freecad.cmd`) to check validity, take tight bounding boxes and slice them.
+
+**What changed**
+
+- **Elevons are in every model:**
+  - Shape: a 5 mm flat plate, flush with the bottom surface, with a bevelled trailing edge on top.
+  - Position: butted against the wing trailing edge with no gap, along the outer panel from the kink (x ≈ 290–296 mm) to the tip (x ≈ 655–660 mm).
+  - Size: chord ≈ 72 mm at the root and ≈ 42 mm at the tip; area ≈ 2.08 dm² each, **4.15 dm² for the pair**.
+  - The pair matches the ~4.5–5 dm² that was missing (§4.5). The earlier estimate from the plan pages was ≈ 2.3 dm² each.
+- **The airfoils, winglets and cowl are unchanged.**
+  - In the 7 Siloute models other than Base, the wing sections ahead of the elevon (x = 150–640 mm) match the 2026-10-13 values to within 0.1 mm.
+  - In Base they differ slightly (incidence ±0.1°), only because of its coarser re-export.
+
+**New reference values (with elevons, from the STLs)**
+
+| Model | S [dm²] | b [mm] | AR | MAC [mm] | MAC at y [mm] | MAC LE / 25% MAC behind the nose [mm] | Wetted [dm²] | Volume [L] | Winglet h [mm] |
+|---|---|---|---|---|---|---|---|---|---|
+| Base | 35.76 | 1336 | 4.99 | 289.2 | 280 | 194 / 267 | 78.44 | 6.96 | 95.2 |
+| CW | 35.93 | 1336 | 4.97 | 290.2 | 281 | 194 / 267 | 78.15 | 6.97 | 95.2 |
+| RT | 35.78 | 1336 | 4.99 | 289.4 | 280 | 194 / 266 | 78.14 | 6.80 | 95.2 |
+| RT+CW | 35.78 | 1336 | 4.99 | 289.4 | 280 | 194 / 266 | 77.31 | 6.78 | **87.1** |
+| CC | 36.49 | 1346 | 4.96 | 292.3 | 283 | 192 / 265 | 80.01 | 7.63 | 95.2 |
+| CC+CW | 36.50 | 1346 | 4.96 | 292.4 | 283 | 192 / 265 | 79.52 | 7.62 | 95.3 |
+| CC+RT | 36.49 | 1346 | 4.96 | 292.3 | 283 | 192 / 265 | 79.66 | 7.47 | 95.2 |
+| CC+RT+CW | 36.50 | 1346 | 4.96 | 292.4 | 283 | 192 / 265 | 79.17 | 7.46 | 95.3 |
+| contourn | 36.08 | 1336 | 4.95 | 291.0 | 281 | 194 / 267 | 78.55 | 5.72* | 95.3 |
+
+\* The `contourn` STL is faulty (see below). Its volume from the STEP file is 5.91 L.
+
+- Chord including the elevon: ≈ 229 mm at the kink and ≈ 160 mm at the tip (was 211 / 121 mm).
+- The original's flight-tested CG (260 mm behind the leading edge) is now **≈ 7 mm ahead of the 25% MAC point** (≈ 267 mm). That is plausible for a swept wing, whose neutral point lies aft of the 25% MAC. Step 3 will give the real margin.
+- *Section tables:* the script measures the largest closed loop at each station. In the Siloute models and `contourn` that is the wing without the elevon, so §4.4 is still valid for the wing airfoil. In Base the elevon is fused into the same loop, so its outboard rows include the elevon, which makes t/c ≈ 7% and the trailing edge ≈ 5 mm thick.
+
+**Mesh health of the new STLs**
+
+| Model | Triangles | Non-manifold edges | Inconsistent orientation | Degenerate | Facet angle p90 / p99 [deg] | Comment |
+|---|---|---|---|---|---|---|
+| Base | **5090** (was 21836) | 8 | 20 | 8 | 23.0 / **167.9** | Re-exported much coarser, with folded facets. **Re-export.** |
+| CW, RT, RT+CW | 21–23 k | 0 | 0 | 0 | ≈ 10 / 26–32 | OK |
+| CC, CC+CW, CC+RT, CC+RT+CW | 35–37 k | 13 | 26 | 0 | 8.9 / 15–16 | Elevon joined along a line, not a face |
+| contourn | 9154 | 4 | 8 | 0 | 11.2 / 90.0 | **Broken outer-panel tessellation.** **Re-export.** |
+
+- **`contourn` STL:** from the kink outboard, slices show long triangles that run from the trailing edge back to the leading edge, plus thin internal sheets. The cause is the export, not the model: `STP/contourn.stp` is a valid solid and slices cleanly, with chord ≈ 136 mm + 46 mm elevon at x = 600 mm, the same as the other models.
+
+**STEP files (`STP/`, AP214 from Inventor 2026, one solid each)**
+
+| File | Valid in OpenCASCADE | Error | Valid after `fix()` |
+|---|---|---|---|
+| Base, CW, RT, RT+CW | no | self-intersecting wire, unorientable shape | yes |
+| CC, CC+CW, CC+RT, CC+RT+CW | no | unorientable shape | **no** |
+| contourn | **yes** | – | – |
+
+- **Cause:** the wing trailing edge is rounded (6–10 mm), and the flat front face of the 5 mm elevon touches it **only along a line**. Joining the two gives a non-manifold solid. `contourn` is valid because its trailing edge is cut flat where the elevon attaches.
+- **Fix in Inventor:** either of these works.
+  - (a) Extend the elevon 2–3 mm forward into the wing, or give it a front face that matches the rounded trailing edge, then *Combine → Join* so that the two share a face with real area.
+  - (b) Keep the elevon as a separate solid body in a multi-body part with a small gap (≈ 0.5 mm). Both are exported, and the CFD simply sees two bodies.
+
+  Option (a) matches the "part of the wing, fixed at 0°, no gap" decision of 2026-10-14.
+- **Flow5 and snappyHexMesh need valid, watertight geometry**, so fix this before Step 3/4.
+
+**Common datum**
+
+| | Origin (front of the root LE) | Bottom | Tail (centre TE) | Spanwise centre |
+|---|---|---|---|---|
+| STEP files | y = 199.2–200.6 mm | z = 0 (`contourn` −6.5) | y = −448.9 … −449.8 (RT+CW −454.2, winglet) | x = 0, except **CC models x = −5 mm** (span −678 … +668) |
+| STLs | Base matches its STEP; the other 8 still have the old origins (nose y = 323.4–326.0, bottom z = 0 / 10 / 12) | | | |
+
+- The STLs look like they were exported before the origin was moved. The STEP files are close to a common datum, but **not the agreed one** (root LE = (0, 0, 0), X aft, Z up): the axes are still X = span, Y = forward, Z = up.
+- **The CC models are shifted 5 mm sideways in the STEP files.** Their STLs are symmetric (±673 mm), so this is an offset of the origin, not of the geometry.
+- This doesn't block the work: Claude can align all files by script (translate so the root LE is at the origin, then rotate to CFD axes). The STLs and STEPs of each model must match, though, so re-export the STLs after setting the origin.
+
+**Still open from §4.5**
+
+- **RT+CW winglets are still 87 mm** (and their tip extends ≈ 5 mm further aft in the STEP). The other 7 Siloute models have 95 mm.
+- **The tessellation is still coarse for CFD.** No `STL/cfd/` export yet; see Step 1.
 
 ---
 
@@ -229,6 +315,9 @@ Tick the boxes as steps are completed and update the Status line at the top.
 - [ ] Mission: cruise speed, endurance or range, stall speed, maximum speed, payload.
 - [ ] Flying site altitude and temperature, which set the air density ρ and kinematic viscosity ν.
 - [ ] Motor and propeller (original: 2826 2200 kV, 5×5×3 pusher).
+  - Motor chosen 2026-10-14: **A2212/10T 1400 kV**.
+  - Still needed: motor mass, prop D × pitch, motor position (x behind the leading edge, z relative to the wing), battery/ESC/servo masses and cell count. These are used to check thrust-to-weight against ≈ 700 g.
+  - The motor and prop are **not modelled in CAD** for the selection: they are the same in every variant. Only a trailing-edge motor cutout belongs in the geometry, if the real wing has one.
 - [ ] Comparison metrics and their weights for the final decision (Step 5).
 
 Quick numbers using the original's 700 g and S ≈ 0.365 m² (with elevons). CLmax = 0.8 is an assumption.
@@ -244,11 +333,20 @@ Formulas: CL = 2W / (ρ V² S); Re = V c / ν; V_stall = √(2W / (ρ S CLmax)).
 
 ### Step 1: Fix the CAD models and export analysis files (designer, Inventor)
 
-- [ ] **Winglets / ChangedWings:** confirm or fix the RT+CW winglet height (87 vs 95 mm), so each change is identical in every combination.
-- [ ] **Elevons:** add them to all 9 models (W16, along the outer-panel trailing edge from the kink to the tip).
-  - Make them separate bodies with a hinge axis, so they can be exported at different deflections: 0°, the original reflex (template T1), and later the trim angle from Step 3.
-- [ ] **Common datum:** use the same origin in all models, e.g. the centre of the nose on the bottom plane = (0, 0, 0), keeping the current axes. Fallback: Claude can align them by script.
-- [ ] **STEP export** (AP214 or AP242) of every model into a new folder `STEP/`. `.gitattributes` already routes `.step`/`.stp` to Git LFS.
+Decisions of 2026-10-14 (selection phase only):
+- The elevons are part of the wing, **fixed at 0°**, with no gap, hinge, mechanism or deflection parameter, and the same W16 chord and span in all 9 models.
+- Deflections and trim reflex are handled in AVL/XFLR5/Flow5 through the hinge-line definition, not in CAD. Optionally, export one reflexed STL of the winner for a CFD re-check.
+- After the selection: a full `.iam` assembly with the wing plus a shared equipment sub-assembly (real masses) for CG, inertia and clearance. The elevon mechanism is designed then.
+
+Checklist:
+- [ ] **Winglets / ChangedWings:** confirm or fix the RT+CW winglet height (87 vs 95 mm), so each change is identical in every combination. *Still 87 mm on 2026-10-15.*
+- [x] **Elevons added to all 9 models** (2026-10-15, commit `1deeefd`): 5 mm plate, ≈ 72 → 42 mm chord, kink to tip, 4.15 dm² per pair (§4.6).
+  - [ ] **Fix the joint:** the flat elevon touches the rounded trailing edge only along a line, so the STEP solid is invalid. Overlap 2–3 mm and *Join* (or match the trailing-edge shape), then re-export (§4.6).
+- [ ] **Common datum:** root LE = (0, 0, 0) in all models.
+  - *2026-10-15:* the STEP files are nearly common (root LE at y ≈ 199–201 mm, bottom z = 0, CC models offset 5 mm sideways), but the STLs (except Base) still use the old origins.
+  - Re-export the STLs after setting the origin, so each STL matches its STEP. Fallback: Claude aligns them by script.
+- [x] **STEP export** (AP214) of every model into `STP/` (2026-10-15). `.gitattributes` routes `.stp` to Git LFS. *Re-export after the elevon joint fix.*
+- [ ] **Re-export the `contourn` STL** (broken outer-panel tessellation; the STEP file is fine) and the **Base STL** (only 5 k triangles, with folded facets).
 - [ ] **Finer STL export for CFD** into `STL/cfd/`:
   - Binary format, units mm or m.
   - In the STL export *Options*, choose Resolution = Custom, with Normal Deviation ≈ 2–5°, and Surface Deviation and Max Edge Length small enough that triangles are ≲ 5–10 mm.
@@ -392,18 +490,22 @@ Run matrix:
 
 ## 6. Open questions for the designer
 
-1. Do the STLs include the elevons? The evidence (§4.5) says no.
+1. ~~Do the STLs include the elevons?~~ Answered: they were missing; added on 2026-10-15.
 2. Is `contourn` your model of the original Berkik 3? Is it a candidate or only a reference?
-3. Is the 87 mm RT+CW winglet intended? What exactly is "ChangedWings" meant to change?
-4. Which airfoil(s) are in the Inventor sketches (name or coordinates)? Is the 6–10 mm rounded trailing edge intentional, i.e. a hinge line?
-5. What are the Step 0 targets: weight, speeds, endurance, payload, flying altitude?
-6. Is there access to a wind tunnel?
+3. Is the 87 mm RT+CW winglet intended? What exactly is "ChangedWings" meant to change? (Still 87 mm after the 2026-10-15 re-export.)
+4. Is the 5 mm sideways offset of the CC models in the STEP files intentional?
+5. Motor/prop/mass data for the A2212/10T setup (see Step 0).
+6. Which airfoil(s) are in the Inventor sketches (name or coordinates)? Is the 6–10 mm rounded trailing edge intentional, i.e. a hinge line?
+7. What are the Step 0 targets: weight, speeds, endurance, payload, flying altitude?
+8. Is there access to a wind tunnel?
 
 ---
 
 ## 7. How to resume this work
 
-- **Re-run the measurements:** `python3 analysis/scripts/stl_geometry.py`. It prints every table above in Markdown and rewrites `analysis/figures/`. It needs numpy, matplotlib and Pillow, which are already installed.
+- **Re-run the measurements:** `python3 analysis/scripts/stl_geometry.py`. It prints every table above in Markdown, including the elevon table, and rewrites `analysis/figures/`. It needs numpy, matplotlib and Pillow, which are already installed.
+  - Since 2026-10-15 the figures show the models with elevons. The `contourn` section plots are wrong until its STL is re-exported.
+- **Check the STEP files:** they are read with FreeCAD's Python (`freecad.cmd script.py`, using `Part.Shape().read()`, `isValid()`, `optimalBoundingBox()` and `slice()`). The snap can't read `/tmp`, so run the script from `~/snap/freecad/common/`.
 - **Resume the Claude Code session:** `claude --continue` reopens the latest conversation in this folder; `claude --resume` lets you pick one. Claude's project memory also points to this report.
 - **Track progress:** tick the checkboxes and update the Status line as steps are completed.
 

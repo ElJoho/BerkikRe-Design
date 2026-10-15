@@ -166,6 +166,21 @@ def section_props(loop):
     }
 
 
+def elevon(m, step=2.0):
+    # elevons are 5 mm flat plates aft of the wing TE; a slice shows them as a separate thin loop
+    xs = np.arange(270, m["P"][:, 0].max(), step)
+    chord = np.zeros(len(xs))
+    for i, x in enumerate(xs):
+        loops = [L for L in slice_loops(m["P"], m["F"], 0, x + 0.0137)
+                 if len(L) > 8 and np.ptp(L[:, 1]) > 20 and abs(np.ptp(L[:, 2]) - 5) < 0.3]
+        chord[i] = max((np.ptp(L[:, 1]) for L in loops), default=0)
+    on = xs[chord > 0]
+    if not len(on):
+        return None
+    return {"x0": on.min(), "x1": on.max(), "c_max": chord.max(), "c_min": chord[chord > 0].min(),
+            "S_pair": 2 * chord.sum() * step}
+
+
 def raster(P, F, ia, ib):
     a, b = P[:, ia], P[:, ib]
     a0, b0 = a.min(), b.min()
@@ -341,6 +356,14 @@ def main():
         f = lambda v: f"{np.round(v[0]) + 0.0:.0f} / {v[1]:.0f}"
         print(f"| {MODELS[name]} | {f(p['root'])} | {f(p['kink'])} | {f(p['tip'])} | "
               f"{p['le_sweep_in']:.1f} / {p['le_sweep_out']:.1f} | {p['te_sweep_in']:.1f} / {p['te_sweep_out']:.1f} |")
+
+    print("\n## Elevons (separate 5 mm loop aft of the wing TE; '-' = fused into the wing loop, not separable)\n")
+    print("| Model | Span x from / to [mm] | Chord max / min [mm] | Area, both [dm²] |")
+    print("|---|---|---|---|")
+    for name, m in meshes.items():
+        e = elevon(m)
+        print(f"| {MODELS[name]} | " + ("- | - | - |" if e is None else
+              f"{e['x0']:.0f} / {e['x1']:.0f} | {e['c_max']:.1f} / {e['c_min']:.1f} | {e['S_pair'] / 1e4:.2f} |"))
 
     print("\n## Sections (x = distance from the centreline)\n")
     print("| Model | x [mm] | Chord [mm] | Incidence [deg] | t/c [%] @ x/c | Camber [%] @ x/c | Camber slope near TE | TE thickness [mm] | Points |")
