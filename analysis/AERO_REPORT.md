@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | Date | 2026-10-13, updated 2026-10-15 |
-| Status | Elevons added and STL + STEP files re-exported (commit `1deeefd`). New geometry checked on 2026-10-15 (§4.6). **No aerodynamic test has been run yet.** |
-| Next action | Designer: finish Step 1. Fix the elevon joint so the STEP solids are valid, re-export the `contourn` and Base STLs, decide on the RT+CW winglet, and give the motor and mass data. Claude: then Step 3. |
-| Re-run the measurements | `python3 analysis/scripts/stl_geometry.py` |
+| Status | Elevon joint fixed and all files re-exported (commit `1a596ae`), checked on 2026-10-15 (§4.7): one fused body per model, all 9 STLs clean, CC and `contourn` STEPs valid. Script fixes (§4.8): all 9 STEPs repaired and moved to the common datum in `STP/fixed/`, and watertight fine CFD STLs in `STL/cfd/`. **No aerodynamic test has been run yet.** |
+| Next action | Designer: decide on the RT+CW winglet and give the motor and mass data. Optional: repair the inboard upper-surface face of the 4 non-CC models in Inventor (§4.7). Claude: then Step 3, using `STP/fixed/` and `STL/cfd/`. |
+| Re-run the measurements | `python3 analysis/scripts/stl_geometry.py`; STEP check: copy `analysis/scripts/step_check.py` to `~/snap/freecad/common/` and run `freecad.cmd ~/snap/freecad/common/step_check.py $PWD/STP`. Rebuild `STP/fixed/` + `STL/cfd/`: same with `step_fix_align.py $PWD`, then `python3 analysis/scripts/stl_close_holes.py STL/cfd/*.stl` |
 
 ---
 
@@ -254,7 +254,7 @@ The STLs were measured with `analysis/scripts/stl_geometry.py`, which now also p
 | CC+RT+CW | 36.50 | 1346 | 4.96 | 292.4 | 283 | 192 / 265 | 79.17 | 7.46 | 95.3 |
 | contourn | 36.08 | 1336 | 4.95 | 291.0 | 281 | 194 / 267 | 78.55 | 5.72* | 95.3 |
 
-\* The `contourn` STL is faulty (see below). Its volume from the STEP file is 5.91 L.
+\* The `contourn` STL is faulty (see below). *Correction (§4.7): the 5.91 L once quoted from the STEP file came from OpenCASCADE's volume integration, which is off by 2–4% on these files; a fine tessellation of the STEP gives 5.79 L.*
 
 - Chord including the elevon: ≈ 229 mm at the kink and ≈ 160 mm at the tip (was 211 / 121 mm).
 - The original's flight-tested CG (260 mm behind the leading edge) is now **≈ 7 mm ahead of the 25% MAC point** (≈ 267 mm). That is plausible for a swept wing, whose neutral point lies aft of the 25% MAC. Step 3 will give the real margin.
@@ -303,6 +303,68 @@ The STLs were measured with `analysis/scripts/stl_geometry.py`, which now also p
 - **RT+CW winglets are still 87 mm** (and their tip extends ≈ 5 mm further aft in the STEP). The other 7 Siloute models have 95 mm.
 - **The tessellation is still coarse for CFD.** No `STL/cfd/` export yet; see Step 1.
 
+### 4.7 Elevon joint fix (commit `1a596ae`, checked 2026-10-15)
+
+Checked with `analysis/scripts/stl_geometry.py` and `analysis/scripts/step_check.py` (FreeCAD 1.1).
+
+**Elevon joint: fixed.**
+- In all 9 models the elevon is now fused into the wing: slices give one closed loop over the full chord, so the elevon table of the script shows "–" (not separable). The chords at the kink and tip, S, MAC and wetted area are unchanged from §4.6.
+
+**STLs: all 9 are clean.**
+
+| Model | Triangles | Open / non-manifold / flipped / degenerate | Facet angle p90 / p99 [deg] |
+|---|---|---|---|
+| Base | 19 464 (was 5 090) | 0 / 0 / 0 / 0 | 10.7 / 49.0 |
+| CW, RT, RT+CW | 19–21 k | 0 / 0 / 0 / 0 | ≈ 10.6 / 29–34 |
+| CC, CC+CW, CC+RT, CC+RT+CW | 33.5–35.6 k | 0 / 0 / 0 / 0 (were 13 / 26) | 8.9 / 15.2–15.5 |
+| contourn | 9 114 | 0 / 0 / 0 / 0 | 11.4 / 90.0 (flat TE cut, not a fault) |
+
+- **`contourn` STL fixed:** the outboard sections are now clean (chord 266 → 169 mm from x = 350 to 640 mm including the elevon, t/c ≈ 5.8%), and its volume (5.787 L) matches a fine tessellation of its STEP (5.788 L).
+- The tessellation is still the default one (max edge ≈ 480–530 mm); the finer `STL/cfd/` export is still needed for CFD.
+
+**STEP files: CC and `contourn` are valid; the 4 non-CC models have one bad face per side, not at the elevon.**
+
+| File | Valid in OpenCASCADE | Valid after `fix()` | Notes |
+|---|---|---|---|
+| CC, CC+CW, CC+RT, CC+RT+CW | **yes** (were invalid even after `fix()`) | – | |
+| contourn | yes | – | z min = −6.5 mm (its origin is not at the bottom) |
+| Base, CW, RT, RT+CW | no: self-intersecting wire, unorientable shape | yes (volume change ≤ 1.1 cm³, 0.02%) | |
+
+- **Where:** the same B-spline face on each side, the **inboard upper wing surface** between the centre body and the kink (span x = 82–284 mm, z = 7–32 mm, 191 cm²). It isn't the elevon, which starts at the kink. The 4 CC models build that region differently and don't have it. The fault was already there before the joint fix (same error in §4.6), hidden behind the elevon error.
+- **Impact:** low. OpenCASCADE's `fix()` repairs it with a negligible change, so Claude can repair the STEPs by script before Flow5/meshing. To fix it at the source, rebuild that loft or boundary patch in Inventor (e.g. check its rails for a twisted or self-crossing edge).
+- The strict BOP check also lists C0-continuity and curve-on-surface tolerance warnings in all files. These are normal for Inventor exports and don't make the solid invalid.
+- **Volume:** OpenCASCADE's `shape.Volume` is off by 2–4% on these files. Use the STL volumes (§4.6), which match fine tessellations of the STEPs to within 0.1%.
+
+**Unchanged (still open)**
+- **Datum:** the STEPs have the same origins as in §4.6 (root LE at y ≈ 199–201 mm, CC models offset −5 mm in span x), and the STLs still have the old origins (nose y = 323–326 mm, bottom z = 0 / 10 / 12 mm).
+- **RT+CW winglet: still 87.1 mm** (the others are 95.2–95.3 mm).
+
+### 4.8 Fixes done by script (2026-10-15)
+
+Two scripts turn the designer's STEP files into analysis-ready geometry, without touching `STP/*.stp` or `STL/*.stl`:
+
+1. `analysis/scripts/step_fix_align.py` (FreeCAD). For each `STP/<model>.stp` it:
+   - repairs the solid with OpenCASCADE `fix()` if it is invalid (Base, CW, RT, RT+CW; volume change ≤ +1.1 cm³);
+   - moves it to the **common datum**: origin at the nose (the most forward point of the symmetry plane = root LE), **X aft, Y along the span, Z up**, all in mm. The symmetry plane is the middle of the spanwise bounding box, which removes the 5 mm offset of the CC models;
+   - writes `STP/fixed/<model>.stp` (valid solid) and a fine binary STL `STL/cfd/<model>.stl` (chordal error 0.02 mm, 5° between neighbouring facets).
+2. `analysis/scripts/stl_close_holes.py` closes the few sub-millimetre gaps that OpenCASCADE leaves at the small fillet faces where the winglet meets the trailing edge (Base, RT: 5 loops, 104 edges; RT+CW: 2 loops, 30 edges). It fills each loop with a fan of triangles, in place.
+
+**Result**
+
+| Model | Repaired | Span shift [mm] | Nose before (y, z) [mm] | x [mm] | y [mm] | z [mm] | CFD STL triangles | Size [MB] |
+|---|---|---|---|---|---|---|---|---|
+| Base | fix() | 0 | 199.2, 9.8 | 0 … 648.1 | ±668.0 | −9.8 … 85.4 | 289 806 | 14.5 |
+| CW | fix() | 0 | 199.7, 9.4 | 0 … 649.5 | ±668.0 | −9.4 … 85.9 | 450 994 | 22.5 |
+| RT | fix() | 0 | 199.2, 9.8 | 0 … 648.1 | ±668.0 | −9.8 … 85.4 | 287 896 | 14.4 |
+| RT+CW | fix() | 0 | 199.2, 9.8 | 0 … 653.4 | ±668.0 | −9.8 … 77.3 | 316 626 | 15.8 |
+| CC (all 4) | – | +5.0 | 200.6, 9.2 | 0 … 649.5–650.4 | ±673.0 | −9.2 … 86.1 | 439–453 k | 22.0–22.7 |
+| contourn | – | 0 | 200.4, 0.3 | 0 … 648.9 | ±668.0 | −6.8 … 93.1 | 305 384 | 15.3 |
+
+- All 9 `STP/fixed/` solids are valid. All 9 `STL/cfd/` files are closed, manifold and consistently oriented, and their volumes are within 0.2% of the designer's STLs.
+- **Note:** the nose sits 6–10 mm above the lowest point of the wing, so the bottom is at z ≈ −6.8 to −9.8 mm in the new datum.
+- `stl_geometry.py` still reads the designer's `STL/*.stl`, which use the old axes, so its tables stay comparable with §4.2–4.7.
+- **Not fixable by script:** the RT+CW winglet height (87 vs 95 mm) is a design change and must be done in Inventor. A per-part split of the CFD STL (body, wings, winglets, elevons) also needs Inventor, or can be done later by cutting the mesh with planes.
+
 ---
 
 ## 5. Step-by-step plan
@@ -341,13 +403,14 @@ Decisions of 2026-10-14 (selection phase only):
 Checklist:
 - [ ] **Winglets / ChangedWings:** confirm or fix the RT+CW winglet height (87 vs 95 mm), so each change is identical in every combination. *Still 87 mm on 2026-10-15.*
 - [x] **Elevons added to all 9 models** (2026-10-15, commit `1deeefd`): 5 mm plate, ≈ 72 → 42 mm chord, kink to tip, 4.15 dm² per pair (§4.6).
-  - [ ] **Fix the joint:** the flat elevon touches the rounded trailing edge only along a line, so the STEP solid is invalid. Overlap 2–3 mm and *Join* (or match the trailing-edge shape), then re-export (§4.6).
-- [ ] **Common datum:** root LE = (0, 0, 0) in all models.
+  - [x] **Fix the joint** (2026-10-15, commit `1a596ae`): elevon overlapped and joined; one fused body in all 9 (§4.7).
+  - [ ] *Optional:* repair the invalid inboard upper-surface face of Base, CW, RT, RT+CW (not the elevon; `fix()` repairs it by script, §4.7).
+- [x] **Common datum:** root LE = (0, 0, 0) in all models. *Done by script on 2026-10-15 for the analysis files (`STP/fixed/`, `STL/cfd/`; X aft, Y span, Z up; §4.8). The Inventor parts still have their own origins.*
   - *2026-10-15:* the STEP files are nearly common (root LE at y ≈ 199–201 mm, bottom z = 0, CC models offset 5 mm sideways), but the STLs (except Base) still use the old origins.
   - Re-export the STLs after setting the origin, so each STL matches its STEP. Fallback: Claude aligns them by script.
-- [x] **STEP export** (AP214) of every model into `STP/` (2026-10-15). `.gitattributes` routes `.stp` to Git LFS. *Re-export after the elevon joint fix.*
-- [ ] **Re-export the `contourn` STL** (broken outer-panel tessellation; the STEP file is fine) and the **Base STL** (only 5 k triangles, with folded facets).
-- [ ] **Finer STL export for CFD** into `STL/cfd/`:
+- [x] **STEP export** (AP214) of every model into `STP/` (2026-10-15). `.gitattributes` routes `.stp` to Git LFS. Re-exported after the joint fix (commit `1a596ae`).
+- [x] **Re-export the `contourn` and Base STLs** (2026-10-15, commit `1a596ae`): both clean now (§4.7).
+- [x] **Finer STL export for CFD** into `STL/cfd/`: *done by script from the STEP files on 2026-10-15 (§4.8). The Inventor instructions below are kept in case a per-part export is wanted.*
   - Binary format, units mm or m.
   - In the STL export *Options*, choose Resolution = Custom, with Normal Deviation ≈ 2–5°, and Surface Deviation and Max Edge Length small enough that triangles are ≲ 5–10 mm.
   - Ideally export separate STLs per part (centre body + cowl, wings, winglets, elevons) to get a force breakdown in CFD.
@@ -418,7 +481,7 @@ Optional GUI for OpenFOAM: FreeCAD (already installed as a snap) with the CfdOF 
 **Effort:** ~2–4 days to set up and validate, then ~1–2 h per run on this laptop (12 threads, 14 GB RAM).
 
 Preprocessing (Claude can script this):
-- [ ] Convert the Step 1 STLs to metres and rotate them to CFD axes (x along the flow from nose to tail, z up, y along the span). Put all models on the common datum.
+- [ ] Convert the Step 1 STLs to metres and rotate them to CFD axes (x along the flow from nose to tail, z up, y along the span). Put all models on the common datum. *Axes and datum done in `STL/cfd/` (§4.8); still in mm, so scale by 0.001 (e.g. `surfaceConvert -scale 0.001`).*
 - [ ] Use a half model with a symmetry plane at the centreline. This is valid for symmetric flight only.
 - [ ] Use the same moment reference point for all models: the CG chosen in Step 3.
 - [ ] Reference area and length: S and MAC **with elevons**. For a half model use S/2.
