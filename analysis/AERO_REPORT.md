@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | Date | 2026-10-13, updated 2026-10-15 |
-| Status | Elevon joint fixed and all files re-exported (commit `1a596ae`), checked on 2026-10-15 (§4.7): one fused body per model, all 9 STLs clean, CC and `contourn` STEPs valid. Script fixes (§4.8): all 9 STEPs repaired and moved to the common datum in `STP/fixed/`, and watertight fine CFD STLs in `STL/cfd/`. **No aerodynamic test has been run yet.** |
-| Next action | Designer: decide on the RT+CW winglet and give the motor and mass data. Optional: repair the inboard upper-surface face of the 4 non-CC models in Inventor (§4.7). Claude: then Step 3, using `STP/fixed/` and `STL/cfd/`. |
-| Re-run the measurements | `python3 analysis/scripts/stl_geometry.py`; STEP check: copy `analysis/scripts/step_check.py` to `~/snap/freecad/common/` and run `freecad.cmd ~/snap/freecad/common/step_check.py $PWD/STP`. Rebuild `STP/fixed/` + `STL/cfd/`: same with `step_fix_align.py $PWD`, then `python3 analysis/scripts/stl_close_holes.py STL/cfd/*.stl` |
+| Status | Step 1 done (geometry fixed and aligned, §4.7–4.8). **Step 3 first pass done (2026-10-15):** AVL + XFoil stability, trim and a low-order drag estimate of all 9 variants with placeholder masses (700 g, CG 260 mm), §4.9, with figures. **Tier lists and a preliminary recommendation (CC+RT+CW) in §4.10.** No CFD yet. |
+| Next action | Designer: give the real motor/battery/servo masses and positions, and decide whether to add reflex to the elevon or airfoil (§4.9, finding 2). Claude: rerun Step 3 with the real masses, add the dynamic modes and tip-stall check, then Step 4 (CFD). |
+| Re-run the measurements | `python3 analysis/scripts/stl_geometry.py`; STEP check: copy `analysis/scripts/step_check.py` to `~/snap/freecad/common/` and run `freecad.cmd ~/snap/freecad/common/step_check.py $PWD/STP`. Rebuild `STP/fixed/` + `STL/cfd/`: same with `step_fix_align.py $PWD`, then `python3 analysis/scripts/stl_close_holes.py STL/cfd/*.stl`. Step 3: `freecad.cmd ~/snap/freecad/common/extract_sections.py $PWD` (copy it there first), then `python3 analysis/scripts/avl_build.py && python3 analysis/scripts/xfoil_polars.py && python3 analysis/scripts/avl_build.py --visc && python3 analysis/scripts/drag_estimate.py && python3 analysis/scripts/step3_figures.py` (options `--mass`, `--xcg`, `--rho`) |
 
 ---
 
@@ -25,7 +25,7 @@
   Vortex-lattice and panel methods will barely separate the variants. Use them for stability and trim, and rank the variants with CFD and physical tests.
 - **Fix these before any test** (status after the 2026-10-15 re-export, details in §4.6):
   1. ~~The elevons are missing from all models.~~ **Done.** All 9 models now have 5 mm flat-plate elevons fixed at 0°. Wing area is now 35.8–36.5 dm², against the original's 36.54 dm².
-  2. ReducedTail+ChangedWings has **87 mm winglets**; all the other models have 95 mm. **Still open.**
+  2. ReducedTail+ChangedWings has **87 mm winglets**; all the other models have 95 mm. **Intended by the designer (2026-10-15).**
   3. **Common datum:**
      - **Mostly done in the STEP files:** root leading edge at y ≈ 199–201 mm, bottom at z = 0.
      - **Not done in 8 of the 9 STLs** (all except Base).
@@ -337,7 +337,7 @@ Checked with `analysis/scripts/stl_geometry.py` and `analysis/scripts/step_check
 
 **Unchanged (still open)**
 - **Datum:** the STEPs have the same origins as in §4.6 (root LE at y ≈ 199–201 mm, CC models offset −5 mm in span x), and the STLs still have the old origins (nose y = 323–326 mm, bottom z = 0 / 10 / 12 mm).
-- **RT+CW winglet: still 87.1 mm** (the others are 95.2–95.3 mm).
+- **RT+CW winglet: 87.1 mm** (the others are 95.2–95.3 mm). *Decision 2026-10-15: the 87 mm is intended (designer). RT+CW stays in the set as is; see Step 5 for how it's handled in the comparison.*
 
 ### 4.8 Fixes done by script (2026-10-15)
 
@@ -363,7 +363,137 @@ Two scripts turn the designer's STEP files into analysis-ready geometry, without
 - All 9 `STP/fixed/` solids are valid. All 9 `STL/cfd/` files are closed, manifold and consistently oriented, and their volumes are within 0.2% of the designer's STLs.
 - **Note:** the nose sits 6–10 mm above the lowest point of the wing, so the bottom is at z ≈ −6.8 to −9.8 mm in the new datum.
 - `stl_geometry.py` still reads the designer's `STL/*.stl`, which use the old axes, so its tables stay comparable with §4.2–4.7.
-- **Not fixable by script:** the RT+CW winglet height (87 vs 95 mm) is a design change and must be done in Inventor. A per-part split of the CFD STL (body, wings, winglets, elevons) also needs Inventor, or can be done later by cutting the mesh with planes.
+- The RT+CW winglet height (87 vs 95 mm) is intended (2026-10-15), so nothing to fix. A per-part split of the CFD STL (body, wings, winglets, elevons) also needs Inventor, or can be done later by cutting the mesh with planes.
+
+### 4.9 Step 3 results: stability, trim and drag with AVL + XFoil (2026-10-15, preliminary)
+
+**Inputs and assumptions**
+- Geometry from `STP/fixed/`: 30 spanwise cuts per model, airfoils rebuilt from the measured camber line and thickness, winglets as flat fins. The elevon (fused in the CAD) is an AVL control surface from the kink to the tip, hinged where the section thins to 5 mm.
+- **Centre body (y < 75 mm)** is modelled as an extension of the root airfoil at y = 75 mm, with its real chord. A thin-surface model reads the cowl and tail-face shape as camber and gives unphysical local down-load there, so the body's own effects go into the base-drag estimate and the CFD instead. As a result, RT and CW behave like Base in AVL apart from small section differences.
+- **Placeholder mass data:** 700 g, CG 260 mm behind the nose (the plan's values), sea-level air (ρ = 1.225 kg/m³). At Bogotá (ρ ≈ 0.96) every speed below is ≈ 13% higher for the same CL.
+- Two models bracket the pitch result:
+  - **Inviscid AVL:** thin camber line only.
+  - **Viscous:** AVL with each section's incidence shifted by the XFoil zero-lift-angle change and the XFoil section-moment change added (Re at 12 m/s, Ncrit 9). This one is more realistic; the truth is probably closer to it.
+- **Drag** (`drag_estimate.py`), at the trimmed condition of the viscous model:
+  - wing profile drag: XFoil cd at each AVL strip's cl, scaled by (V/12)^−0.2 for Reynolds
+  - winglet friction: flat plate, cd = 0.010
+  - induced drag: AVL, including the elevon deflection
+  - base drag of the blunt tail face: 0.15 × face area / S
+
+  It's for ranking, not absolute numbers; CFD (Step 4) replaces it.
+- Pipeline: `extract_sections.py` → `avl_build.py` → `xfoil_polars.py` → `avl_build.py --visc` → `drag_estimate.py` → `step3_figures.py`. Outputs are in `analysis/avl/` and `analysis/figures/step3_*.png`.
+
+![Planform of Base with neutral point, CG and elevon](figures/step3_planform.png)
+
+**Stability and trim** (derivatives at the trimmed 12 m/s point; elevon + = trailing edge down)
+
+| Model | Xnp [mm] | Margin at CG 260 [% MAC] | CG for 5–10% [mm] | Cm0 visc / invisc | Elevon at 12 m/s, visc / invisc [°] | Cm_δe [/°] | Cnβ [/rad] | Clβ [/rad] |
+|---|---|---|---|---|---|---|---|---|
+| Base | 278.1 | 6.3 | 249 – 264 | -0.025 / -0.079 | -5.0 / -12.1 | -0.0085 | 0.0103 | -0.044 |
+| CW | 277.9 | 6.2 | 249 – 263 | -0.025 / -0.079 | -5.1 / -12.2 | -0.0085 | 0.0098 | -0.044 |
+| RT | 278.1 | 6.3 | 249 – 264 | -0.026 / -0.080 | -5.2 / -12.3 | -0.0085 | 0.0103 | -0.045 |
+| RT+CW | 278.0 | 6.3 | 249 – 264 | -0.026 / -0.079 | -5.2 / -12.2 | -0.0085 | 0.0081 | -0.043 |
+| CC | 274.5 | 5.0 | 245 – 260 | -0.021 / -0.066 | -4.2 / -10.4 | -0.0081 | 0.0101 | -0.045 |
+| CC+CW | 274.6 | 5.0 | 245 – 260 | -0.020 / -0.066 | -4.1 / -10.4 | -0.0081 | 0.0103 | -0.046 |
+| CC+RT | 274.5 | 5.0 | 245 – 260 | -0.022 / -0.066 | -4.4 / -10.4 | -0.0081 | 0.0101 | -0.045 |
+| CC+RT+CW | 274.6 | 5.0 | 245 – 260 | -0.022 / -0.066 | -4.3 / -10.4 | -0.0081 | 0.0104 | -0.046 |
+| contourn | 277.8 | 6.2 | 249 – 263 | -0.025 / -0.081 | -4.6 / -11.7 | -0.0092 | 0.0117 | -0.044 |
+
+![Static stability of the 9 variants](figures/step3_stability.png)
+
+**Elevon angle to trim vs speed, viscous / inviscid [°]**
+
+| Model | 10 m/s | 12 m/s | 14 m/s | 16 m/s | 20 m/s |
+|---|---|---|---|---|---|
+| Base | -5.8 / -13.0 | -5.0 / -12.1 | -4.6 / -11.6 | -4.3 / -11.3 | -3.9 / -10.9 |
+| CW | -5.9 / -13.0 | -5.1 / -12.2 | -4.6 / -11.7 | -4.3 / -11.3 | -4.0 / -11.0 |
+| RT | -6.0 / -13.1 | -5.2 / -12.3 | -4.7 / -11.7 | -4.4 / -11.4 | -4.0 / -11.0 |
+| RT+CW | -5.9 / -13.1 | -5.2 / -12.2 | -4.7 / -11.7 | -4.4 / -11.4 | -4.0 / -11.0 |
+| CC | -4.8 / -11.1 | -4.2 / -10.4 | -3.8 / -10.0 | -3.6 / -9.7 | -3.3 / -9.4 |
+| CC+CW | -4.8 / -11.1 | -4.1 / -10.4 | -3.7 / -10.0 | -3.5 / -9.7 | -3.2 / -9.4 |
+| CC+RT | -5.0 / -11.1 | -4.4 / -10.4 | -4.0 / -10.0 | -3.8 / -9.7 | -3.5 / -9.4 |
+| CC+RT+CW | -5.0 / -11.1 | -4.3 / -10.4 | -3.9 / -10.0 | -3.7 / -9.7 | -3.4 / -9.4 |
+| contourn | -5.4 / -12.5 | -4.6 / -11.7 | -4.2 / -11.2 | -3.9 / -10.9 | -3.6 / -10.6 |
+
+![Elevon needed to trim at 12 m/s](figures/step3_trim.png)
+
+**Drag and efficiency** (low-order estimate, trimmed)
+
+| Model | CD at 12 m/s: profile + winglets + induced + base = total | L/D at 12 m/s | Best L/D | Power for level flight at 12 m/s [W] |
+|---|---|---|---|---|
+| Base | 0.0128 + 0.0004 + 0.0048 + 0.0020 = **0.0201** | 10.9 | 14.7 | 7.6 |
+| CW | 0.0121 + 0.0003 + 0.0048 + 0.0020 = **0.0192** | 11.3 | 14.8 | 7.3 |
+| RT | 0.0124 + 0.0004 + 0.0048 + 0.0007 = **0.0184** | 11.9 | 15.4 | 6.9 |
+| RT+CW | 0.0118 + 0.0003 + 0.0048 + 0.0007 = **0.0176** | 12.4 | 15.6 | 6.7 |
+| CC | 0.0126 + 0.0004 + 0.0040 + 0.0020 = **0.0189** | 11.3 | 14.9 | 7.3 |
+| CC+CW | 0.0126 + 0.0003 + 0.0039 + 0.0020 = **0.0189** | 11.3 | 15.0 | 7.3 |
+| CC+RT | 0.0126 + 0.0004 + 0.0040 + 0.0007 = **0.0177** | 12.1 | 15.5 | 6.8 |
+| CC+RT+CW | 0.0126 + 0.0003 + 0.0040 + 0.0007 = **0.0177** | 12.1 | 15.6 | 6.8 |
+| contourn | 0.0124 + 0.0005 + 0.0049 + 0.0021 = **0.0198** | 10.9 | 14.9 | 7.5 |
+
+![Drag breakdown and best L/D](figures/step3_drag.png)
+
+**Findings**
+1. **Neutral point and CG.** Xnp ≈ 278 mm behind the nose for the Base family and ≈ 274.5 mm for the CC family. The plan's CG of 260 mm gives a static margin of **6.3% (Base family)** and **5.0% (CC family)**. A CG of about **255 mm** gives 6.6–8% for every variant, and each 3 mm of CG shift changes the margin by ≈ 1%.
+2. **All variants need up-elevon to fly level.** At 12 m/s that's 4–5° in the viscous model and 10–12° inviscid. The cause is the airfoil: the 5 mm elevon plate is flush with the flat bottom, so the camber line drops at the joint and works like a down-deflected flap. That agrees with the original plan, which flies with the elevons reflexed by template (T1 = 166°, ≈ 14° up). Trimming this way costs induced drag (it's included in the drag estimate).
+3. **Effect of each change** (the factorial pairs):
+   - **ConstantCorners:** NP 3.5 mm further forward (−1.3% margin at the same CG), ≈ 0.8° less up-elevon, and ≈ 17% less induced drag (0.0040 vs 0.0048). It trims better and is slightly more efficient.
+   - **ReducedTail:** the tail face shrinks from ≈ 48 to ≈ 17 cm², which cuts the estimated base drag by ≈ 0.0013 (≈ 7% of the total). That's the biggest single efficiency gain, but it rests on the base-drag assumption, and the pusher prop sits right behind that face. **Confirm it in CFD.** It has no measurable effect on stability.
+   - **ChangedWings:** neutral for stability and trim. Its profile-drag differences (≤ 0.0007) are within the method's noise.
+   - **RT+CW's 87 mm winglet:** Cnβ 0.0081 vs 0.0103 for RT (−21%), the lowest directional stability of the 9. It's still positive.
+   - **contourn:** the highest Cnβ (0.0117, +14% vs Base) and the most effective elevon (Cm_δe −0.0092/°), but drag like Base. Its XFoil polars were the least converged (568 strips clamped), so its drag is the least reliable.
+4. **Lateral-directional:** all 9 are statically stable (Cnβ > 0, Clβ < 0) at 12 m/s, with similar roll stability (Clβ −0.043 to −0.046).
+5. **Elevon authority:** Cm_δe ≈ −0.008 to −0.009 per degree, so the trim angles use about a quarter of a typical ±20–25° travel, which leaves room for pitch control.
+
+**Limits of this step**
+- The masses are placeholders. Rerun with the real masses (minutes) once they're known.
+- The viscous correction uses polars at one Reynolds number and no deflected-elevon polars. XFoil converged only partially at some stations.
+- **Differences under ≈ 1° of trim elevon, ≈ 0.001 in CD or ≈ 0.3 in L/D aren't significant.**
+- Not done yet: dynamic modes (they need the inertias), the tip-stall check near CLmax, and the prop-wake effect on the tail face.
+
+### 4.10 Tier lists (2026-10-15, from §4.9; preliminary until the real masses and the CFD)
+
+Tiers: **S** = best, **A** = good, **B** = acceptable with a caveat, **C** = weakest in this aspect. Variants in the same tier are within the method's noise of each other.
+
+**1. Stability** (pitch margin at the plan CG of 260 mm, yaw stiffness Cnβ, roll stability Clβ)
+
+| Tier | Variants | Why |
+|---|---|---|
+| **S** | contourn | Highest yaw stiffness (Cnβ 0.0117) with a 6.2% pitch margin. |
+| **A** | Base, RT, CW | 6.2–6.3% margin and Cnβ ≈ 0.010. |
+| **B** | CC, CC+CW, CC+RT, CC+RT+CW | Same yaw/roll stability as Base, but only a 5.0% margin at CG 260 (the bottom of the band). Moving the CG to ≈ 255 mm makes them A. |
+| **C** | RT+CW | Lowest yaw stiffness (Cnβ 0.0081, −21%) because of the 87 mm winglet. It's still stable, but has the least margin against Dutch roll and gusts. |
+
+Pitch margin is set by where you put the CG, so it's adjustable. Yaw stiffness comes from the geometry (winglets) and isn't adjustable.
+
+**2. Efficiency** (trimmed CD at 12 m/s and best L/D)
+
+| Tier | Variants | Why |
+|---|---|---|
+| **S** | RT+CW, CC+RT+CW, CC+RT | CD ≈ 0.0177, best L/D 15.5–15.6. The small tail face cuts base drag; CC also trims with less elevon. |
+| **A** | RT | CD 0.0184, L/D 15.4. Small tail face, but more trim drag than the CC versions. |
+| **B** | CC, CC+CW, CW | CD 0.0189–0.0192, L/D 14.8–15.0. The large tail face costs ≈ 0.0013. |
+| **C** | contourn, Base | CD 0.0198–0.0201, L/D 14.7–14.9. Large tail face, most trim drag. contourn's number is the least reliable. |
+
+The spread from best to worst is ≈ 14% in drag. About half of it is the tail-face base drag, which is an assumption to confirm with CFD.
+
+**3. Overall recommendation** (Claude's criteria: efficiency 35%, stability 30%, trim / elevon reserve 15%, confidence in the result and practicality 20%)
+
+| Rank | Tier | Variant | Reasoning |
+|---|---|---|---|
+| 1 | **S** | **CC+RT+CW** | Tied-best efficiency, the least up-elevon of the efficient group (−4.3°), and normal yaw stiffness (0.0104). Its only caveat, a 5.0% margin at CG 260, goes away with the CG at ≈ 255 mm. |
+| 2 | **A** | CC+RT | Practically the same as #1 (same efficiency, trim and stability); the winglet change adds nothing measurable. A good choice if the CW winglets are harder to build. |
+| 3 | **A** | RT | Efficient (L/D 15.4) and 6.3% margin at the plan CG with no changes. Needs ≈ 1° more up-elevon than the CC versions. |
+| 4–5 | **B** | CC+CW / CC | Good trim and margin after the CG shift, but the large tail face costs ≈ 7% in drag. |
+| 6 | **B** | contourn | Best yaw stiffness and most effective elevon, but drag like Base, the least reliable numbers, and the thinnest wing (≈ 5.8 L vs 6.8–7.6 L of volume for equipment). |
+| 7 | **B** | RT+CW | Tied-best efficiency, but the weakest yaw stability. Only recommended if CFD/flight shows the 87 mm winglet is enough. |
+| 8 | **C** | CW | No measurable gain over Base, large tail face. |
+| 9 | **C** | Base | Most drag and the most up-elevon; it's the reference the others improve on. |
+
+**What would change this ranking**
+- **CFD (Step 4)** showing that the tail face has little base drag, for example because the pusher prop fills that wake. Then the RT advantage shrinks, and CC+CW / CC rise to the top on trim.
+- **The real masses:** a CG that can't reach ≈ 255 mm hurts the CC family.
+- **Adding reflex to the elevons** (the standard fix for finding 2) changes the trim drag of all of them by a similar amount, so it shouldn't change the order much.
 
 ---
 
@@ -401,7 +531,7 @@ Decisions of 2026-10-14 (selection phase only):
 - After the selection: a full `.iam` assembly with the wing plus a shared equipment sub-assembly (real masses) for CG, inertia and clearance. The elevon mechanism is designed then.
 
 Checklist:
-- [ ] **Winglets / ChangedWings:** confirm or fix the RT+CW winglet height (87 vs 95 mm), so each change is identical in every combination. *Still 87 mm on 2026-10-15.*
+- [x] **Winglets / ChangedWings:** RT+CW winglet height confirmed as **87 mm, intended** (designer, 2026-10-15). In the factorial analysis (Step 5), the CW effect is estimated mainly from the clean pairs (Base→CW, CC→CC+CW, CC+RT→CC+RT+CW); RT→RT+CW is reported separately as "ChangedWings + 8 mm lower winglet".
 - [x] **Elevons added to all 9 models** (2026-10-15, commit `1deeefd`): 5 mm plate, ≈ 72 → 42 mm chord, kink to tip, 4.15 dm² per pair (§4.6).
   - [x] **Fix the joint** (2026-10-15, commit `1a596ae`): elevon overlapped and joined; one fused body in all 9 (§4.7).
   - [ ] *Optional:* repair the invalid inboard upper-surface face of Base, CW, RT, RT+CW (not the elevon; `fix()` repairs it by script, §4.7).
@@ -460,17 +590,17 @@ Optional GUI for OpenFOAM: FreeCAD (already installed as a snap) with the CfdOF 
 **Goal:** neutral point, a safe CG, the trim elevon angle and dynamic stability. These are the make-or-break items for a tailless wing.
 **Effort:** ~1–2 days to build the models; each analysis then runs in minutes.
 
-- [ ] XFoil polars for each airfoil over the Reynolds range from Step 0 (e.g. 0.5–3×10⁵, Ncrit ≈ 9). Also run them with the elevon deflected (e.g. −15° … +5°) if the tool interpolates viscous drag from polars.
-- [ ] Build the Base model:
+- [~] XFoil polars for each airfoil over the Reynolds range from Step 0 (e.g. 0.5–3×10⁵, Ncrit ≈ 9). Also run them with the elevon deflected (e.g. −15° … +5°) if the tool interpolates viscous drag from polars. *2026-10-15: 11 stations per model at the 12 m/s Reynolds number, no deflected-elevon polars yet (§4.9).*
+- [x] Build the Base model (2026-10-15: AVL models of all 9 built by script, §4.9; masses still placeholders):
   - centre section, inner panel and outer panel (stations from §4.2)
   - winglets as fins and elevons as control surfaces
   - masses from Step 1
-- [ ] Angle-of-attack sweep at fixed speed: CL, CD and Cm vs α, giving Cm0 and the **neutral point (NP)**.
-- [ ] Choose the CG for a **static margin of 5–10% of the MAC** (≈ 14–28 mm ahead of the NP). Compare it with the original's 260 mm.
-- [ ] Trim: find the elevon angle and speed for Cm = 0 at the cruise CL. Target |δ| ≲ 3–5° at cruise, and compare with the original reflex.
+- [x] Angle-of-attack sweep at fixed speed: CL, CD and Cm vs α, giving Cm0 and the **neutral point (NP)**. *NP ≈ 278 mm (Base family), ≈ 274 mm (CC family), §4.9.*
+- [x] Choose the CG for a **static margin of 5–10% of the MAC** (≈ 14–28 mm ahead of the NP). Compare it with the original's 260 mm. *CG 260 mm gives 6.3% (Base family) and 5.0% (CC family); ≈ 255 mm suits all, §4.9.*
+- [x] Trim: find the elevon angle and speed for Cm = 0 at the cruise CL. Target |δ| ≲ 3–5° at cruise, and compare with the original reflex. *All need up-elevon: 4.1–5.2° viscous, 10.4–12.3° inviscid at 12 m/s, §4.9.*
 - [ ] Stability modes (short period, phugoid, Dutch roll, roll, spiral): check the damping and how well the winglets give yaw stability.
 - [ ] Spanwise lift distribution near stall: check the tip-stall tendency (local Cl vs Clmax near the tips).
-- [ ] Repeat for CW, CC and contourn, which change the sections or twist. RT is identical to Base here, because these tools don't model the cowl.
+- [x] Repeat for CW, CC and contourn, which change the sections or twist. *Done for all 9. The centre body (y < 75 mm) is modelled with the root airfoil, so RT ≈ Base in AVL; RT's effect is in the base-drag estimate (§4.9). Tier lists in §4.10.*
 - [ ] If trim needs a large up-elevon, consider airfoil reflex or more washout, as a new CAD variant before the CFD.
 
 **Deliverables:** NP, CG range, trim elevon angle at cruise, low-order trimmed L/D, and a table of stability modes, for Base, CW, CC and contourn.
@@ -555,7 +685,7 @@ Run matrix:
 
 1. ~~Do the STLs include the elevons?~~ Answered: they were missing; added on 2026-10-15.
 2. Is `contourn` your model of the original Berkik 3? Is it a candidate or only a reference?
-3. Is the 87 mm RT+CW winglet intended? What exactly is "ChangedWings" meant to change? (Still 87 mm after the 2026-10-15 re-export.)
+3. ~~Is the 87 mm RT+CW winglet intended?~~ Yes (2026-10-15). What exactly is "ChangedWings" meant to change?
 4. Is the 5 mm sideways offset of the CC models in the STEP files intentional?
 5. Motor/prop/mass data for the A2212/10T setup (see Step 0).
 6. Which airfoil(s) are in the Inventor sketches (name or coordinates)? Is the 6–10 mm rounded trailing edge intentional, i.e. a hinge line?

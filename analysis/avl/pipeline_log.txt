@@ -1,0 +1,1 @@
+written: step3_drag.png step3_planform.png step3_stability.png step3_trim.png
