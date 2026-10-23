@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| Date | 2026-10-13, updated 2026-10-15 |
-| Status | Step 1 done (geometry fixed and aligned, §4.7–4.8). **Step 3 first pass done (2026-10-15):** AVL + XFoil stability, trim and a low-order drag estimate of all 9 variants with placeholder masses (700 g, CG 260 mm), §4.9, with figures. **Tier lists and a preliminary recommendation (CC+RT+CW) in §4.10.** Component masses from the `weights/` photos in §4.11 (≈ 551 g measured, battery 367 g). No CFD yet. |
+| Date | 2026-10-13, updated 2026-10-22 |
+| Status | Step 1 done (geometry fixed and aligned, §4.7–4.8). **Step 3 first pass done (2026-10-15):** AVL + XFoil stability, trim and a low-order drag estimate of all 9 variants with placeholder masses (700 g, CG 260 mm), §4.9, with figures. **Tier lists and a preliminary recommendation (CC+RT+CW) in §4.10.** Component masses from the `weights/` photos in §4.11 (≈ 551 g measured, battery 367 g). No CFD yet. Conclusion on the nose-down pitch tendency with elevons at 0° in §9.1 (2026-10-22). |
 | Next action | Designer: give the battery cell count, motor + prop + airframe masses and the component positions (§4.11), and decide whether to add reflex to the elevon or airfoil (§4.9, finding 2). Claude: rerun Step 3 with the real masses, add the dynamic modes and tip-stall check, then Step 4 (CFD). |
 | Re-run the measurements | `python3 analysis/scripts/stl_geometry.py`; STEP check: copy `analysis/scripts/step_check.py` to `~/snap/freecad/common/` and run `freecad.cmd ~/snap/freecad/common/step_check.py $PWD/STP`. Rebuild `STP/fixed/` + `STL/cfd/`: same with `step_fix_align.py $PWD`, then `python3 analysis/scripts/stl_close_holes.py STL/cfd/*.stl`. Step 3: `freecad.cmd ~/snap/freecad/common/extract_sections.py $PWD` (copy it there first), then `python3 analysis/scripts/avl_build.py && python3 analysis/scripts/xfoil_polars.py && python3 analysis/scripts/avl_build.py --visc && python3 analysis/scripts/drag_estimate.py && python3 analysis/scripts/step3_figures.py` (options `--mass`, `--xcg`, `--rho`) |
 
@@ -749,3 +749,18 @@ Run matrix:
 - XFLR5: https://sourceforge.net/projects/xflr5/
 - AVL: https://web.mit.edu/drela/Public/web/avl/
 - Original Berkik 3 plans: `PDFs/plano.pdf` (Julius Perdana, paper-replika.com)
+
+---
+
+## 9. Conclusions
+
+### 9.1 Pitch tendency with the elevons at 0° (2026-10-22, from §4.9)
+
+**All 9 variants pitch nose-down with the elevons at 0°.**
+- **Cm0 is negative in every model:** −0.020 to −0.026 in the viscous model and −0.066 to −0.081 in the inviscid one (§4.9 table).
+- **With the elevons at 0° there's no level flight with positive lift.** The inviscid AVL trims only at CL ≈ −1.1 and α ≈ −22° (`analysis/avl/summary_inviscid.md`, "no trim"). The viscous model wasn't run at 0°, but its Cm0 has the same sign, so it shows the same tendency.
+- **The tendency is stable, not divergent.** Every variant has Cmα < 0 and a positive static margin, so the aircraft doesn't keep pitching down on its own: it settles nose-down, and up-elevon corrects it.
+- **The CG doesn't change the sign.** With a positive margin, the trim CL with elevons at 0° is ≈ −Cm0 / (margin), which is negative whenever Cm0 < 0. A CG further forward means more up-elevon is needed to fly level.
+- **Size of the correction:** to fly level at 12 m/s the elevons need 4–5° up (viscous) or 10–12° up (inviscid), and more at lower speed (§4.9 trim table). The CC family needs ≈ 0.8° less than the Base family, so it's the least nose-heavy, but every variant has the same tendency.
+- **Cause:** the 5 mm elevon plate is flush with the airfoil's flat bottom, so the camber line drops at the joint and acts like a down-deflected flap (§4.9, finding 2). This matches the original plan, which flies with the elevons reflexed by template T1 (166°, ≈ 14° up).
+- **Consequence:** the decision to add reflex to the elevon or the airfoil is still open (Next action, top of the report). Without it, the aircraft needs permanent up-trim, which costs induced drag. These numbers use the placeholder masses (700 g, CG 260 mm) and are rechecked when the real masses are in.
